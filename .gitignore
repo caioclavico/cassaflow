@@ -1,0 +1,40 @@
+/target
+/classes
+/checkouts
+profiles.clj
+pom.xml
+pom.xml.asc
+*.jar
+*.class
+/.lein-*
+/.nrepl-port
+/.nrepl-history
+.hgignore
+.hg/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.calva/
+.cider/
+.nrepl-port.lock
+
+# Clojure LSP and linters
+.clj-kondo/.cache/
+.lsp/
+.lsp/.cache/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local config
+application.conf
+!application.conf.example
+
+# Logs
+*.log
+
+# Docker
+docker-compose.override.yml
