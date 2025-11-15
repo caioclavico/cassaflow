@@ -1,4 +1,4 @@
-(defproject cassaflow "0.1.0"
+(defproject io.github.caioclavico/cassaflow "0.1.0"
   :description "A Clojure library for Apache Cassandra with named parameters and automatic result conversion"
   :url "https://github.com/caioclavico/cassaflow"
   :license {:name "EPL-2.0 OR GPL-2.0-or-later WITH Classpath-exception-2.0"
