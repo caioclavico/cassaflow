@@ -16,13 +16,13 @@ A Clojure library for working with Apache Cassandra, providing idiomatic Clojure
 Add the following dependency to your `project.clj`:
 
 ```clojure
-[io.github.caioclavico/cassaflow "0.1.0"]
+[org.clojars.caioclavico/cassaflow "0.1.1"]
 ```
 
 Or in `deps.edn`:
 
 ```clojure
-{:deps {io.github.caioclavico/cassaflow {:mvn/version "0.1.0"}}}
+{:deps {org.clojars.caioclavico/cassaflow {:mvn/version "0.1.1"}}}
 ```
 
 ## Quick Start
