@@ -24,13 +24,13 @@
 
 (defn setup-test-schema [session]
   ;; Create keyspace
-  (core/execute session 
+  (core/execute session
                 "CREATE KEYSPACE IF NOT EXISTS test_ks WITH replication = {'class':'SimpleStrategy', 'replication_factor':1}")
-  
+
   ;; Create table
-  (core/execute session 
+  (core/execute session
                 "CREATE TABLE IF NOT EXISTS test_ks.users (id text PRIMARY KEY, name text, age int)")
-  
+
   ;; Create another table for more complex tests
   (core/execute session
                 "CREATE TABLE IF NOT EXISTS test_ks.products (id uuid PRIMARY KEY, name text, price decimal, quantity int)"))
@@ -67,99 +67,145 @@
 (deftest ^:integration test-insert-and-select-with-params
   (testing "Insert and select data using named parameters"
     ;; Insert data
-    (core/execute *session* 
+    (core/execute *session*
                   "INSERT INTO test_ks.users (id, name, age) VALUES (:id, :name, :age)"
                   {:id "user-1" :name "Alice" :age (int 30)})
-    
-    (core/execute *session* 
+
+    (core/execute *session*
                   "INSERT INTO test_ks.users (id, name, age) VALUES (:id, :name, :age)"
                   {:id "user-2" :name "Bob" :age (int 25)})
-    
-    ;; Query with parameters
-    (let [result (core/execute *session* 
-                               "SELECT * FROM test_ks.users WHERE id = :id"
-                               {:id "user-1"})
-          row (first (iterator-seq (.iterator result)))]
-      
-      (is (some? row) "Should retrieve a row")
-      (is (= "user-1" (.getString row "id")))
-      (is (= "Alice" (.getString row "name")))
-      (is (= 30 (.getInt row "age"))))))
+
+    ;; Query with parameters - returns sequence of maps
+    (let [results (core/execute *session*
+                                "SELECT * FROM test_ks.users WHERE id = :id"
+                                {:id "user-1"})
+          user (first results)]
+      (is (= 1 (count results)) "Should return exactly one user")
+      (is (= "user-1" (:id user)))
+      (is (= "Alice" (:name user)))
+      (is (= 30 (:age user))))
+
+    ;; Query with :one? option - returns single map
+    (let [user (core/execute *session*
+                             "SELECT * FROM test_ks.users WHERE id = :id"
+                             {:id "user-2"}
+                             {:one? true})]
+      (is (map? user) "Should return a single map")
+      (is (= "user-2" (:id user)))
+      (is (= "Bob" (:name user)))
+      (is (= 25 (:age user))))))
 
 (deftest ^:integration test-select-all-without-params
   (testing "Select all data without parameters"
     ;; Insert test data
-    (core/execute *session* 
+    (core/execute *session*
+                  "INSERT INTO test_ks.users (id, name, age) VALUES (:id, :name, :age)"
+                  {:id "user-1" :name "Alice" :age (int 30)})
+
+    (core/execute *session*
+                  "INSERT INTO test_ks.users (id, name, age) VALUES (:id, :name, :age)"
+                  {:id "user-2" :name "Bob" :age (int 25)})
+
+    (core/execute *session*
                   "INSERT INTO test_ks.users (id, name, age) VALUES (:id, :name, :age)"
                   {:id "user-3" :name "Charlie" :age (int 35)})
-    
-    (core/execute *session* 
-                  "INSERT INTO test_ks.users (id, name, age) VALUES (:id, :name, :age)"
-                  {:id "user-4" :name "Diana" :age (int 28)})
-    
-    ;; Query without parameters
-    (let [result (core/execute *session* "SELECT * FROM test_ks.users")
-          rows (vec (iterator-seq (.iterator result)))]
-      
-      (is (>= (count rows) 2) "Should have at least 2 users"))))
+
+    ;; Query all users - returns sequence of maps
+    (let [users (core/execute *session* "SELECT * FROM test_ks.users")
+          users-vec (vec users)]
+      (is (= 3 (count users-vec)) "Should return 3 users")
+      (is (every? map? users-vec) "All results should be maps")
+      (is (every? #(contains? % :id) users-vec) "All maps should have :id")
+      (is (every? #(contains? % :name) users-vec) "All maps should have :name")
+      (is (every? #(contains? % :age) users-vec) "All maps should have :age"))))
 
 (deftest ^:integration test-update-operation
-  (testing "Update existing record"
+  (testing "Update existing data"
     ;; Insert initial data
-    (core/execute *session* 
+    (core/execute *session*
                   "INSERT INTO test_ks.users (id, name, age) VALUES (:id, :name, :age)"
-                  {:id "user-5" :name "Eve" :age (int 22)})
-    
-    ;; Update the record
-    (core/execute *session* 
+                  {:id "user-1" :name "Alice" :age (int 30)})
+
+    ;; Update the user
+    (core/execute *session*
                   "UPDATE test_ks.users SET age = :age WHERE id = :id"
-                  {:id "user-5" :age (int 23)})
-    
+                  {:id "user-1" :age (int 31)})
+
     ;; Verify update
-    (let [result (core/execute *session* 
-                               "SELECT * FROM test_ks.users WHERE id = :id"
-                               {:id "user-5"})
-          row (first (iterator-seq (.iterator result)))]
-      
-      (is (= 23 (.getInt row "age")) "Age should be updated to 23"))))
+    (let [user (core/execute *session*
+                             "SELECT * FROM test_ks.users WHERE id = :id"
+                             {:id "user-1"}
+                             {:one? true})]
+      (is (= "user-1" (:id user)))
+      (is (= "Alice" (:name user)))
+      (is (= 31 (:age user)) "Age should be updated to 31"))))
 
 (deftest ^:integration test-delete-operation
-  (testing "Delete a record"
-    ;; Insert data
-    (core/execute *session* 
+  (testing "Delete existing data"
+    ;; Insert test data
+    (core/execute *session*
                   "INSERT INTO test_ks.users (id, name, age) VALUES (:id, :name, :age)"
-                  {:id "user-6" :name "Frank" :age (int 40)})
-    
-    ;; Verify it exists
-    (let [result-before (core/execute *session* 
-                                      "SELECT * FROM test_ks.users WHERE id = :id"
-                                      {:id "user-6"})
-          row-before (first (iterator-seq (.iterator result-before)))]
-      (is (some? row-before) "User should exist before delete"))
-    
-    ;; Delete the record
-    (core/execute *session* 
+                  {:id "user-1" :name "Alice" :age (int 30)})
+
+    (core/execute *session*
+                  "INSERT INTO test_ks.users (id, name, age) VALUES (:id, :name, :age)"
+                  {:id "user-2" :name "Bob" :age (int 25)})
+
+    ;; Verify both users exist
+    (let [users-before (core/execute *session* "SELECT * FROM test_ks.users")]
+      (is (= 2 (count users-before)) "Should have 2 users before delete"))
+
+    ;; Delete one user
+    (core/execute *session*
                   "DELETE FROM test_ks.users WHERE id = :id"
-                  {:id "user-6"})
-    
+                  {:id "user-1"})
+
     ;; Verify deletion
-    (let [result-after (core/execute *session* 
-                                     "SELECT * FROM test_ks.users WHERE id = :id"
-                                     {:id "user-6"})
-          row-after (first (iterator-seq (.iterator result-after)))]
-      (is (nil? row-after) "User should not exist after delete"))))
+    (let [users-after (core/execute *session* "SELECT * FROM test_ks.users")
+          remaining-user (first users-after)]
+      (is (= 1 (count users-after)) "Should have 1 user after delete")
+      (is (= "user-2" (:id remaining-user)) "Remaining user should be user-2"))))
 
 (deftest ^:integration test-batch-insert
-  (testing "Insert multiple records and verify count"
-    (doseq [i (range 10)]
-      (core/execute *session* 
+  (testing "Batch insert multiple records"
+    ;; Insert multiple users
+    (doseq [i (range 1 6)]
+      (core/execute *session*
                     "INSERT INTO test_ks.users (id, name, age) VALUES (:id, :name, :age)"
-                    {:id (str "batch-user-" i) 
-                     :name (str "User " i) 
+                    {:id (str "user-" i)
+                     :name (str "User" i)
                      :age (int (+ 20 i))}))
-    
-    (let [result (core/execute *session* "SELECT COUNT(*) FROM test_ks.users")
-          count-row (first (iterator-seq (.iterator result)))
-          total-count (.getLong count-row 0)]
-      
-      (is (>= total-count 10) "Should have at least 10 users from batch insert"))))
+
+    ;; Verify all were inserted
+    (let [users (core/execute *session* "SELECT * FROM test_ks.users")
+          user-count (count users)]
+      (is (= 5 user-count) "Should have 5 users")
+
+      ;; Verify we can query individual users as maps
+      (let [user-3 (core/execute *session*
+                                 "SELECT * FROM test_ks.users WHERE id = :id"
+                                 {:id "user-3"}
+                                 {:one? true})]
+        (is (= "user-3" (:id user-3)))
+        (is (= "User3" (:name user-3)))
+        (is (= 23 (:age user-3)))))))
+
+(deftest ^:integration test-raw-result-set
+  (testing "Get raw ResultSet when :raw? option is true"
+    ;; Insert test data
+    (core/execute *session*
+                  "INSERT INTO test_ks.users (id, name, age) VALUES (:id, :name, :age)"
+                  {:id "user-1" :name "Alice" :age (int 30)})
+
+    ;; Get raw ResultSet
+    (let [result (core/execute *session*
+                               "SELECT * FROM test_ks.users WHERE id = :id"
+                               {:id "user-1"}
+                               {:raw? true})]
+      (is (instance? com.datastax.oss.driver.api.core.cql.ResultSet result)
+          "Should return raw ResultSet")
+
+      ;; We can still manually iterate if needed
+      (let [row (first (iterator-seq (.iterator result)))]
+        (is (some? row))
+        (is (= "user-1" (.getString row "id")))))))

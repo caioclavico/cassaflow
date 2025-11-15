@@ -5,19 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.1.0] - 2024-11-14
 
 ### Added
 - Named parameter support for CQL queries (`:param-name` syntax)
-- Automatic parameter extraction and binding
-- Core `execute` function for running CQL queries with named parameters
+- Automatic conversion of Cassandra results to Clojure maps
+- Query execution options (`:raw?`, `:one?`)
+- Integration tests with Testcontainers
+- Connection management via `cassaflow.client/connect`
+- Support for INSERT, UPDATE, DELETE, and SELECT operations
+- Core `execute` function for running CQL queries
 - Query namespace with helper functions:
   - `extract-params` - Extract named parameters from CQL strings
   - `replace-placeholders` - Convert named to positional parameters
   - `prepare` - Prepare queries with parameter ordering
-- Client namespace for session management:
-  - `create-session` - Create CqlSession with comprehensive configuration
-  - `create-programmatic-config` - Build driver config programmatically
+
+### Changed
+- Results now return sequences of maps by default
+- Map keys are keywords derived from column names
+
+[0.1.0]: https://github.com/caioclavico/cassaflow/releases/tag/0.1.0
   - `close-session` - Properly close and clean up sessions
 - Full DataStax driver configuration support:
   - Basic options (contact points, datacenter, keyspace)
