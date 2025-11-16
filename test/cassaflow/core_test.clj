@@ -3,74 +3,88 @@
             [cassaflow.core :as cf])
   (:import
    [com.datastax.oss.driver.api.core CqlSession]
-   [com.datastax.oss.driver.api.core.cql ResultSet]))
+   [com.datastax.oss.driver.api.core.cql ResultSet PreparedStatement BoundStatement]))
 
 (deftest test-execute-builds-statement
   (testing "execute should build correct CQL statement with named parameters"
-    (let [executed-stmt (atom nil)
+    (let [executed-bound-stmt (atom nil)
+          prepared-cql (atom nil)
           fake-result-set (reify ResultSet
                             (iterator [_] (.iterator [])))
+
+          fake-prepared-stmt
+          (reify PreparedStatement
+            (bind [_ values]
+              (reset! executed-bound-stmt values)
+              (reify BoundStatement)))
 
           fake-session
           (proxy [CqlSession] []
             (execute [stmt]
-              (reset! executed-stmt stmt)
-              fake-result-set))]
+              fake-result-set)
+            (prepare [cql]
+              (reset! prepared-cql cql)
+              fake-prepared-stmt))]
 
       (cf/execute fake-session
                   "SELECT * FROM users WHERE id = :id"
                   {:id "123"})
 
-      ;; Check if statement was executed
-      (is (some? @executed-stmt) "Statement should be executed")
+      ;; Check if PreparedStatement was created with correct CQL
+      (is (= "SELECT * FROM users WHERE id = ?"
+             @prepared-cql)
+          "CQL should replace named parameters with positional ones")
 
-      ;; Validate that we received a statement (might be String or SimpleStatement)
-      (let [query (if (string? @executed-stmt)
-                    @executed-stmt
-                    (.getQuery @executed-stmt))]
-        (is (= "SELECT * FROM users WHERE id = ?"
-               query)
-            "CQL should replace named parameters with positional ones")))))
+      ;; Check if values were bound
+      (is (some? @executed-bound-stmt) "Values should be bound to statement"))))
 
 (deftest test-execute-without-params
   (testing "execute should work without parameters"
-    (let [executed-stmt (atom nil)
+    (let [prepared-cql (atom nil)
           fake-result-set (reify ResultSet
                             (iterator [_] (.iterator [])))
+
+          fake-prepared-stmt
+          (reify PreparedStatement
+            (bind [_ values]
+              (reify BoundStatement)))
 
           fake-session
           (proxy [CqlSession] []
             (execute [stmt]
-              (reset! executed-stmt stmt)
-              fake-result-set))]
+              fake-result-set)
+            (prepare [cql]
+              (reset! prepared-cql cql)
+              fake-prepared-stmt))]
 
       (cf/execute fake-session "SELECT * FROM users")
 
-      (is (some? @executed-stmt) "Statement should be executed")
-
-      (let [query (if (string? @executed-stmt)
-                    @executed-stmt
-                    (.getQuery @executed-stmt))]
-        (is (= "SELECT * FROM users" query))))))
+      (is (= "SELECT * FROM users" @prepared-cql)))))
 
 (deftest test-execute-with-multiple-params
   (testing "execute should handle multiple named parameters"
-    (let [executed-stmt (atom nil)
+    (let [prepared-cql (atom nil)
+          bound-values (atom nil)
           fake-result-set (reify ResultSet
                             (iterator [_] (.iterator [])))
+
+          fake-prepared-stmt
+          (reify PreparedStatement
+            (bind [_ values]
+              (reset! bound-values values)
+              (reify BoundStatement)))
 
           fake-session
           (proxy [CqlSession] []
             (execute [stmt]
-              (reset! executed-stmt stmt)
-              fake-result-set))]
+              fake-result-set)
+            (prepare [cql]
+              (reset! prepared-cql cql)
+              fake-prepared-stmt))]
 
       (cf/execute fake-session
                   "SELECT * FROM users WHERE id = :id AND name = :name"
                   {:id "123" :name "John"})
 
-      (let [query (if (string? @executed-stmt)
-                    @executed-stmt
-                    (.getQuery @executed-stmt))]
-        (is (= "SELECT * FROM users WHERE id = ? AND name = ?"
-               query))))))
+      (is (= "SELECT * FROM users WHERE id = ? AND name = ?"
+             @prepared-cql)))))

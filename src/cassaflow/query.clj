@@ -14,4 +14,4 @@
 (defn prepare [q params]
   (let [ordered (extract-params q)]
     {:cql    (replace-placeholders q)
-     :params (map params ordered)}))
+     :params (mapv params ordered)}))

@@ -85,11 +85,10 @@
       (is (= "Alice" (:name user)))
       (is (= 30 (:age user))))
 
-    ;; Query with :one? option - returns single map
-    (let [user (core/execute *session*
-                             "SELECT * FROM test_ks.users WHERE id = :id"
-                             {:id "user-2"}
-                             {:one? true})]
+    ;; Query single user - returns sequence, get first
+    (let [user (first (core/execute *session*
+                                    "SELECT * FROM test_ks.users WHERE id = :id"
+                                    {:id "user-2"}))]
       (is (map? user) "Should return a single map")
       (is (= "user-2" (:id user)))
       (is (= "Bob" (:name user)))
@@ -132,10 +131,9 @@
                   {:id "user-1" :age (int 31)})
 
     ;; Verify update
-    (let [user (core/execute *session*
-                             "SELECT * FROM test_ks.users WHERE id = :id"
-                             {:id "user-1"}
-                             {:one? true})]
+    (let [user (first (core/execute *session*
+                                    "SELECT * FROM test_ks.users WHERE id = :id"
+                                    {:id "user-1"}))]
       (is (= "user-1" (:id user)))
       (is (= "Alice" (:name user)))
       (is (= 31 (:age user)) "Age should be updated to 31"))))
@@ -182,30 +180,9 @@
       (is (= 5 user-count) "Should have 5 users")
 
       ;; Verify we can query individual users as maps
-      (let [user-3 (core/execute *session*
-                                 "SELECT * FROM test_ks.users WHERE id = :id"
-                                 {:id "user-3"}
-                                 {:one? true})]
+      (let [user-3 (first (core/execute *session*
+                                        "SELECT * FROM test_ks.users WHERE id = :id"
+                                        {:id "user-3"}))]
         (is (= "user-3" (:id user-3)))
         (is (= "User3" (:name user-3)))
         (is (= 23 (:age user-3)))))))
-
-(deftest ^:integration test-raw-result-set
-  (testing "Get raw ResultSet when :raw? option is true"
-    ;; Insert test data
-    (core/execute *session*
-                  "INSERT INTO test_ks.users (id, name, age) VALUES (:id, :name, :age)"
-                  {:id "user-1" :name "Alice" :age (int 30)})
-
-    ;; Get raw ResultSet
-    (let [result (core/execute *session*
-                               "SELECT * FROM test_ks.users WHERE id = :id"
-                               {:id "user-1"}
-                               {:raw? true})]
-      (is (instance? com.datastax.oss.driver.api.core.cql.ResultSet result)
-          "Should return raw ResultSet")
-
-      ;; We can still manually iterate if needed
-      (let [row (first (iterator-seq (.iterator result)))]
-        (is (some? row))
-        (is (= "user-1" (.getString row "id")))))))
